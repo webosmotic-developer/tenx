@@ -8,8 +8,13 @@ export class TenxGraphService {
     private svg: any;
     private svgG: any;
     private zoomG: any;
+    private chatbot: any;
+    private chatbotG: any;
+    private chatbotH: any = 140;
+    private chatbotW: any = 350;
     private zoomParameter: any;
     private zoomListener: any;
+    private dragListener: any;
     private height: any;
     private width: any;
     private margin: any = {top: 20, right: 20, bottom: 20, left: 20};
@@ -20,6 +25,9 @@ export class TenxGraphService {
     private arc: any = d3.arc();
     private arcThickness: any = 25;
     private dataset: any = {};
+    private dragMsg: any;
+    private msgDataArray: any;
+    private msgContainer: any;
 
 
     constructor() {
@@ -29,9 +37,9 @@ export class TenxGraphService {
      * Init graph container
      * */
     public fnInit(options) {
+        this.msgDataArray = [{text: 'What result do you want today?'}];
         this.parentEle = options.parentEle;
         this.dataset = options.data;
-
         d3.select(this.parentEle).select('svg').remove();
         // append the svg object to the body of the page
         this.svg = d3.select(this.parentEle).append('svg').attr('class', 'tree-layout');
@@ -45,9 +53,38 @@ export class TenxGraphService {
             this.zoomG.attr('transform', d3.event.transform);
         });
 
+        this.fnCreateChatBot();
         this.fnAutoAlign();
         this.fnUpdate();
+        this.fnInitMsgDragListener();
         return this;
+    }
+
+    /**
+     * Create circle as drag able
+     * */
+    public fnInitMsgDragListener() {
+        const _this = this;
+        this.dragListener = d3.drag()
+            .on('start', function () {
+                const pos = d3.mouse(_this.svg.node());
+                _this.dragMsg.attr('cx', pos[0]).style('fill', 'red').attr('cy', pos[1]);
+            })
+            .on('drag', function (d) {
+                const pos = d3.mouse(_this.svg.node());
+                _this.dragMsg.attr('cx', pos[0]).attr('cy', pos[1]);
+            })
+            .on('end', (d) => {
+                console.log(d, 'OnDrop')
+                _this.dragMsg.style('display', 'none');
+            });
+        this.dragMsg = this.svg.selectAll('circle.drag')
+            .data([{}])
+            .enter()
+            .append('circle')
+            .attr('class', 'drag')
+            .style('display', 'none')
+            .call(this.dragListener);
     }
 
     /**
@@ -59,8 +96,11 @@ export class TenxGraphService {
         this.height = this.parentEle.clientHeight - this.margin.top - this.margin.bottom;
         // moves the 'group' element to the top left margin
         this.svg.attr('width', this.width + this.margin.left + this.margin.right)
-            .attr('height', this.height + this.margin.top + this.margin.bottom)
-            .call(this.zoomListener);
+            .attr('height', this.height + this.margin.top + this.margin.bottom);
+
+        const chatBotX = ((this.width / 2) + this.margin.left) - (this.chatbotW / 2);
+        const chatBotY = this.height - this.chatbotH;
+        this.chatbotG.attr('transform', 'translate(' + chatBotX + ',' + chatBotY + ')');
     }
 
     /**
@@ -109,6 +149,83 @@ export class TenxGraphService {
             });
         pathSelection.exit().remove();
         gsSelection.exit().remove();
+    }
+
+    /**
+     * Create chatbot UI
+     * */
+    fnCreateChatBot() {
+        const _this = this;
+        this.chatbotG = this.svg.append('g');
+
+        this.chatbot = this.chatbotG.append('foreignObject')
+            .attr('width', this.chatbotW)
+            .attr('height', this.chatbotH)
+            .append('xhtml:div')
+            .attr('class', 'chatbot');
+        this.msgContainer = this.chatbot.append('xhtml:div')
+            .attr('class', 'msg-container');
+        this.fnUpdateMsgArray();
+        // Add TextBox
+        this.chatbot.append('xhtml:div')
+            .attr('class', 'container')
+            .append('xhtml:input')
+            .attr('type', 'text')
+            .attr('class', 'form-control').on('keypress', function () {
+            if (d3.event.keyCode === 13) {
+                _this.msgDataArray.push({text: this.value});
+                _this.fnUpdateMsgArray();
+                this.value = '';
+            }
+        });
+    }
+
+    public fnUpdateMsgArray() {
+        const _this = this;
+        const msgSelection = this.msgContainer.selectAll('div.message').data(this.msgDataArray);
+        const newMsg = msgSelection.enter()
+            .append('xhtml:div');
+        newMsg.merge(msgSelection)
+            .attr('class', 'container message')
+            .on('mouseover', () => {
+                const pos = d3.mouse(_this.svg.node());
+                const selection = _this.svg.selectAll('circle.drag').data([{name: 'test'}]);
+
+                selection.attr('r', '20px')
+                    .attr('cx', pos[0])
+                    .attr('cy', pos[1])
+                    .style('fill', 'transparent')
+                    .style('display', 'block');
+            });
+        msgSelection.exit().remove();
+        const imgSelection = newMsg.merge(msgSelection)
+            .selectAll('img.avatar')
+            .data((d) => {
+                return [d];
+            });
+
+        const newImg = imgSelection.enter().append('xhtml:img');
+        newImg.merge(imgSelection)
+            .attr('class', 'avatar')
+            .attr('src', 'http://via.placeholder.com/150x150?text=USER')
+            .attr('alt', 'Avatar');
+        imgSelection.exit().remove();
+        const pSelection = newMsg.merge(msgSelection)
+            .selectAll('p.content')
+            .data((d) => {
+                return [d];
+            });
+        const newP = pSelection.enter().append('xhtml:p');
+        newP.merge(pSelection)
+            .attr('class', 'content')
+            .text((d) => {
+                return d.text;
+            });
+        pSelection.exit().remove();
+        this.msgContainer.each(() => {
+            const msgEle = document.getElementsByClassName('msg-container')[0];
+            msgEle.scrollTo(0, msgEle.scrollHeight);
+        });
     }
 
 }
