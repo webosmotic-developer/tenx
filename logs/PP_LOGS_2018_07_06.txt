@@ -1,0 +1,6 @@
+ [2018-07-06T05:43:20.699] [INFO] Angular Full Stack listening on port 3000
+ [2018-07-06T05:43:21.875] [INFO] Angular Full Stack listening on port 3000
+ [2018-07-06T05:43:47.245] [INFO] Angular Full Stack listening on port 3000
+ [2018-07-06T05:45:48.388] [INFO] Angular Full Stack listening on port 3000
+ [2018-07-06T05:45:50.023] [INFO] Angular Full Stack listening on port 3000
+ [2018-07-06T05:46:45.321] [INFO] Angular Full Stack listening on port 3000
