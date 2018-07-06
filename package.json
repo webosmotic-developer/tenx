@@ -12,7 +12,7 @@
         "predev": "tsc -p server",
         "dev": "concurrently \"ng serve -pc proxy.conf.json --open\" \"ncp server/assets/ dist/server/assets/\" \"tsc -w -p server\" \"nodemon dist/server/app.js\"",
         "prod": "concurrently \"ng build -aot -prod && tsc -p server && ncp server/assets/ dist/server/assets/ && node dist/server/app.js\"",
-        "build:prod": "concurrently \"ng build -aot -prod && tsc -p server && ncp server/assets/ dist/server/assets/\""
+        "build:prod": "concurrently \"ng build -aot -prod && tsc -p server && ncp server/assets/ dist/server/assets/\"",
         "postinstall": "npm run build:prod"
     },
     "private": true,
