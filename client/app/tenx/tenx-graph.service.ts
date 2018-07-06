@@ -68,23 +68,27 @@ export class TenxGraphService {
         this.dragListener = d3.drag()
             .on('start', function () {
                 const pos = d3.mouse(_this.svg.node());
-                _this.dragMsg.attr('cx', pos[0]).style('fill', 'red').attr('cy', pos[1]);
+                _this.dragMsg.select('circle').attr('cx', pos[0]).style('fill', '#fff').attr('cy', pos[1]);
+                _this.dragMsg.select('text').attr('x', pos[0] - 20).style('fill', '#000').attr('y', pos[1]);
             })
             .on('drag', function (d) {
                 const pos = d3.mouse(_this.svg.node());
-                _this.dragMsg.attr('cx', pos[0]).attr('cy', pos[1]);
+                _this.dragMsg.select('circle').attr('cx', pos[0]).attr('cy', pos[1]);
+                _this.dragMsg.select('text').attr('x', pos[0] - 20).attr('y', pos[1]);
             })
             .on('end', (d) => {
-                console.log(d, 'OnDrop')
+                console.log(d, 'OnDrop');
                 _this.dragMsg.style('display', 'none');
             });
-        this.dragMsg = this.svg.selectAll('circle.drag')
+        this.dragMsg = this.svg.selectAll('g.drag')
             .data([{}])
             .enter()
-            .append('circle')
+            .append('g')
             .attr('class', 'drag')
-            .style('display', 'none')
+            .style('display', 'none');
+        this.dragMsg.append('circle')
             .call(this.dragListener);
+        this.dragMsg.append('text');
     }
 
     /**
@@ -187,15 +191,28 @@ export class TenxGraphService {
             .append('xhtml:div');
         newMsg.merge(msgSelection)
             .attr('class', 'container message')
-            .on('mouseover', () => {
+            .on('mouseover', (d) => {
                 const pos = d3.mouse(_this.svg.node());
-                const selection = _this.svg.selectAll('circle.drag').data([{name: 'test'}]);
-
-                selection.attr('r', '20px')
-                    .attr('cx', pos[0])
-                    .attr('cy', pos[1])
+                const selection = _this.svg.selectAll('g.drag').data([d]);
+                selection.style('display', 'block');
+                selection
+                    .select('circle')
                     .style('fill', 'transparent')
-                    .style('display', 'block');
+                    .attr('r', '40px')
+                    .attr('cx', pos[0])
+                    .attr('cy', pos[1]);
+                selection
+                    .select('text')
+                    .style('fill', 'transparent')
+                    .attr('x', pos[0] - 20)
+                    .attr('y', pos[1])
+                    .text((td) => {
+                        if (td.text.length > 5) {
+                            return td.text.substring(0, 5) + '...';
+                        } else {
+                            return td.text;
+                        }
+                    });
             });
         msgSelection.exit().remove();
         const imgSelection = newMsg.merge(msgSelection)
