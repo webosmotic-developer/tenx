@@ -24,7 +24,7 @@ export class TenxGraphService {
         return 1;
     }).sort(null);
     private arc: any = d3.arc();
-    private arcThickness: any = 50;
+    private arcThickness: any = 0;
     private dataset: any = {};
     private dragMsg: any;
     private msgDataArray: any;
@@ -33,7 +33,6 @@ export class TenxGraphService {
     private svgZoomG: any;
     private dragTarget: any;
     private circleColorScale: any;
-
 
     constructor() {
     }
@@ -171,10 +170,12 @@ export class TenxGraphService {
         // Set the dimensions and margins of the diagram
         this.width = this.parentEle.clientWidth - this.margin.left - this.margin.right;
         this.height = this.parentEle.clientHeight - this.margin.top - this.margin.bottom;
+        this.arcThickness = (((this.height - this.chatbotH) < this.width ? (this.height - this.chatbotH) : this.width)) / ((10 * 2) + 1);
         // moves the 'group' element to the top left margin
         this.svg.attr('width', this.width + this.margin.left + this.margin.right)
             .attr('height', this.height + this.margin.top + this.margin.bottom);
-
+        this.svgG.attr('transform', 'translate(' + this.parentEle.clientWidth / 2 + ',' + (((this.parentEle.clientHeight - (this.chatbotH + 25)) / 2)) + ')');
+        this.svgZoomG.attr('transform', 'translate(' + this.parentEle.clientWidth / 2 + ',' + (((this.parentEle.clientHeight - (this.chatbotH + 25)) / 2)) + ')');
         const chatBotX = ((this.width / 2) + this.margin.left) - (this.chatbotW / 2);
         const chatBotY = this.height - this.chatbotH;
         this.chatbotG.attr('transform', 'translate(' + chatBotX + ',' + chatBotY + ')');
@@ -225,13 +226,15 @@ export class TenxGraphService {
             })
             .style('opacity', 1)
             .attr('pointer-events', 'mouseover')
+            .on('click', (e) => {
+                console.log('click', e, d3.event);
+            })
+            .transition()
+            .duration(750)
             .attr('d', (d) => {
                 return self.arc
                     .innerRadius(self.arcThickness * (d.parentIndex - 1))
                     .outerRadius(self.arcThickness * (d.parentIndex))(d.partitionObj);
-            })
-            .on('click', (e) => {
-                console.log('click', e, d3.event);
             });
         const childGSelection = this.svgG.selectAll('g.childG')
             .data(this.dataset);
