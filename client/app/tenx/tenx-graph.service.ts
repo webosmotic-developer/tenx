@@ -57,7 +57,7 @@ export class TenxGraphService {
         this.zoomListener = d3.zoom().on('zoom', () => {
             this.zoomParameter = d3.event.transform;
             this.zoomG.attr('transform', d3.event.transform);
-            this.svgZoomG.attr('transform', d3.event.transform);
+            this.zoomGhostG.attr('transform', d3.event.transform);
         });
 
         this.fnCreateChatBot();
@@ -111,9 +111,14 @@ export class TenxGraphService {
                             x: posTarget[0],
                             y: posTarget[1]
                         },
-                        value: (((((self.arcThickness * (self.dragTarget.parentIndex))) - (self.arcThickness * (self.dragTarget.parentIndex - 1))) / 2) + (self.arcThickness * (self.dragTarget.parentIndex - 1)))
+                        value: (((((self.arcThickness * (self.dragTarget.parentIndex))) -
+                            (self.arcThickness * (self.dragTarget.parentIndex - 1))) / 2) +
+                            (self.arcThickness * (self.dragTarget.parentIndex - 1)))
                     });
-                    self.dragMsg.attr('transform', 'translate(' + (945 + value[0]) + ',' + (376 + value[1]) + ')');
+                    const transform = self.svgG.attr('transform').split('translate(')[1].split(')')
+                        [0].split(',');
+                    self.dragMsg.attr('transform', 'translate(' + (parseFloat(transform[0]) + value[0]) + ','
+                        + (parseFloat(transform[1]) + value[1]) + ')');
                 } else {
                     self.dragMsg.attr('transform', 'translate(' + pos[0] + ',' + pos[1] + ')');
                 }
@@ -130,7 +135,9 @@ export class TenxGraphService {
                             x: posTarget[0],
                             y: posTarget[1]
                         },
-                        value: (((((self.arcThickness * (self.dragTarget.parentIndex))) - (self.arcThickness * (self.dragTarget.parentIndex - 1))) / 2) + (self.arcThickness * (self.dragTarget.parentIndex - 1)))
+                        value: (((((self.arcThickness * (self.dragTarget.parentIndex))) -
+                            (self.arcThickness * (self.dragTarget.parentIndex - 1))) / 2) +
+                            (self.arcThickness * (self.dragTarget.parentIndex - 1)))
                     });
                     d.cx = value[0];
                     d.cy = value[1];
