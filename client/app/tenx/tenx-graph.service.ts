@@ -1,5 +1,6 @@
 import {Injectable} from '@angular/core';
 import * as d3 from 'd3';
+import * as _ from 'lodash';
 
 @Injectable()
 export class TenxGraphService {
@@ -23,11 +24,15 @@ export class TenxGraphService {
         return 1;
     }).sort(null);
     private arc: any = d3.arc();
-    private arcThickness: any = 25;
+    private arcThickness: any = 50;
     private dataset: any = {};
     private dragMsg: any;
     private msgDataArray: any;
     private msgContainer: any;
+    private zoomGhostG: any;
+    private svgZoomG: any;
+    private dragTarget: any;
+    private circleColorScale: any;
 
 
     constructor() {
@@ -40,55 +45,116 @@ export class TenxGraphService {
         this.msgDataArray = [{text: 'What result do you want today?'}];
         this.parentEle = options.parentEle;
         this.dataset = options.data;
+        this.circleColorScale = d3.scaleLinear<string>().domain([1, 10]).range(['#47aaff', '#274864']);
         d3.select(this.parentEle).select('svg').remove();
         // append the svg object to the body of the page
         this.svg = d3.select(this.parentEle).append('svg').attr('class', 'tree-layout');
         this.zoomG = this.svg.append('g');
+
         // appends a 'group' element to 'svg'
         this.svgG = this.zoomG.append('g')
             .attr('transform', 'translate(' + this.parentEle.clientWidth / 2 + ',' + this.parentEle.clientHeight / 2 + ')');
-
         this.zoomListener = d3.zoom().on('zoom', () => {
             this.zoomParameter = d3.event.transform;
             this.zoomG.attr('transform', d3.event.transform);
+            this.svgZoomG.attr('transform', d3.event.transform);
         });
 
         this.fnCreateChatBot();
+        this.fnInitMsgDragListener();
+        this.zoomGhostG = this.svg.append('g');
+        this.svgZoomG = this.zoomGhostG.append('g')
+            .attr('transform', 'translate(' + this.parentEle.clientWidth / 2 + ',' + this.parentEle.clientHeight / 2 + ')');
         this.fnAutoAlign();
         this.fnUpdate();
-        this.fnInitMsgDragListener();
+        this.dragTarget = null;
         return this;
+    }
+
+    // Gaussian eq to get points due to various node size
+    public calculatePoint(d) {
+        const diffX = d.target.x - d.source.x;
+        const diffY = d.target.y - d.source.y;
+
+        const pathLength = Math.sqrt((diffX * diffX) + (diffY * diffY));
+
+        const offsetX = (diffX * (d.value)) / pathLength;
+        const offsetY = (diffY * (d.value)) / pathLength;
+
+        return [d.target.x - offsetX, d.target.y - offsetY];
     }
 
     /**
      * Create circle as drag able
      * */
     public fnInitMsgDragListener() {
-        const _this = this;
+        const self = this;
         this.dragListener = d3.drag()
             .on('start', function () {
-                const pos = d3.mouse(_this.svg.node());
-                _this.dragMsg.select('circle').attr('cx', pos[0]).style('fill', '#fff').attr('cy', pos[1]);
-                _this.dragMsg.select('text').attr('x', pos[0] - 20).style('fill', '#000').attr('y', pos[1]);
+                d3.event.sourceEvent.stopPropagation();
+                self.dragMsg.select('circle').style('fill', '#fff');
+                self.dragMsg.select('text').style('fill', '#000');
+                self.svgZoomG.selectAll('.ghost-g').attr('pointer-events', 'mouseover');
+                self.svgZoomG.selectAll('.ghost-path').attr('pointer-events', 'mouseover');
+                d3.event.sourceEvent.preventDefault();
             })
-            .on('drag', function (d) {
-                const pos = d3.mouse(_this.svg.node());
-                _this.dragMsg.select('circle').attr('cx', pos[0]).attr('cy', pos[1]);
-                _this.dragMsg.select('text').attr('x', pos[0] - 20).attr('y', pos[1]);
+            .on('drag', function (d: any) {
+                const pos = d3.mouse(self.svg.node());
+                const posTarget = d3.mouse(self.svgG.node());
+                if (self.dragTarget) {
+                    const value = self.calculatePoint({
+                        target: {
+                            x: 0,
+                            y: 0
+                        },
+                        source: {
+                            x: posTarget[0],
+                            y: posTarget[1]
+                        },
+                        value: (((((self.arcThickness * (self.dragTarget.parentIndex))) - (self.arcThickness * (self.dragTarget.parentIndex - 1))) / 2) + (self.arcThickness * (self.dragTarget.parentIndex - 1)))
+                    });
+                    self.dragMsg.attr('transform', 'translate(' + (945 + value[0]) + ',' + (376 + value[1]) + ')');
+                } else {
+                    self.dragMsg.attr('transform', 'translate(' + pos[0] + ',' + pos[1] + ')');
+                }
             })
-            .on('end', (d) => {
-                console.log(d, 'OnDrop');
-                _this.dragMsg.style('display', 'none');
+            .on('end', (d: any) => {
+                const posTarget = d3.mouse(self.svgG.node());
+                if (self.dragTarget) {
+                    const value = self.calculatePoint({
+                        target: {
+                            x: 0,
+                            y: 0
+                        },
+                        source: {
+                            x: posTarget[0],
+                            y: posTarget[1]
+                        },
+                        value: (((((self.arcThickness * (self.dragTarget.parentIndex))) - (self.arcThickness * (self.dragTarget.parentIndex - 1))) / 2) + (self.arcThickness * (self.dragTarget.parentIndex - 1)))
+                    });
+                    d.cx = value[0];
+                    d.cy = value[1];
+                    self.dragTarget.partitionObj.data.children.push(_.cloneDeep(d));
+                }
+                self.dragMsg.select('circle').style('fill', 'transparent');
+                self.dragMsg.select('text').style('fill', 'transparent');
+                self.svgZoomG.selectAll('.ghost-g').attr('pointer-events', 'none');
+                self.svgZoomG.selectAll('.ghost-path').attr('pointer-events', 'none');
+                self.dragMsg.attr('transform', 'translate(-1000, -1000)');
+                self.fnUpdate();
+                self.dragTarget = null;
             });
         this.dragMsg = this.svg.selectAll('g.drag')
             .data([{}])
             .enter()
             .append('g')
-            .attr('class', 'drag')
-            .style('display', 'none');
-        this.dragMsg.append('circle')
-            .call(this.dragListener);
-        this.dragMsg.append('text');
+            .attr('class', 'drag').call(this.dragListener);
+        this.dragMsg.append('circle');
+        this.dragMsg.append('text')
+            .attr('x', (-self.arcThickness / 2) + 5)
+            .style('text-anchor', 'center')
+            .style('font-size', '12px')
+            .style('dominant-baseline', 'middle');
     }
 
     /**
@@ -119,47 +185,153 @@ export class TenxGraphService {
      * Update Graph data
      * */
     public fnUpdate() {
-        const _this = this;
-        const gsSelection = this.svgG.selectAll('g')
+        const self = this;
+        const gsSelection = this.svgG.selectAll('g.parentG')
             .data(this.dataset);
-
         const newGEle = gsSelection.enter()
             .append('g')
             .attr('class', (d, i) => {
-                return 'level' + (i + 1);
+                return 'parentG level' + (i + 1);
             });
-
-        const pathSelection = newGEle.merge(gsSelection).selectAll('path')
+        const gSelection = newGEle.merge(gsSelection).selectAll('g.path-g')
             .data((d, i) => {
-                return _this.pie(d.data).map((item) => {
+                return self.pie(d.data).map((item) => {
+                    return {partitionObj: item, parentIndex: i + 1};
+                });
+            });
+        const newG = gSelection.enter().append('g').attr('class', 'path-g');
+        gSelection.exit().remove();
+        const pathSelection = newG.merge(gSelection).selectAll('path').data((d) => {
+            return [d];
+        });
+        const newPath = pathSelection.enter().append('path');
+
+        newPath.merge(pathSelection)
+            .attr('class', (d) => {
+                return 'node' + d.parentIndex;
+            })
+            .attr('stroke', (d) => {
+                return '#fff';
+            })
+            .attr('fill', (d) => {
+                return this.circleColorScale(d.parentIndex);
+            })
+            .style('opacity', 1)
+            .attr('pointer-events', 'mouseover')
+            .attr('d', (d) => {
+                return self.arc
+                    .innerRadius(self.arcThickness * (d.parentIndex - 1))
+                    .outerRadius(self.arcThickness * (d.parentIndex))(d.partitionObj);
+            })
+            .on('click', (e) => {
+                console.log('click', e, d3.event);
+            });
+        const childGSelection = this.svgG.selectAll('g.childG')
+            .data(this.dataset);
+        const newChildGEle = childGSelection.enter()
+            .append('g')
+            .attr('class', (d, i) => {
+                return 'childG level' + (i + 1);
+            });
+        const pgSelection = newChildGEle.merge(childGSelection).selectAll('g.path-g')
+            .data((d, i) => {
+                return self.pie(d.data).map((item) => {
+                    return {partitionObj: item, parentIndex: i + 1};
+                });
+            });
+        const newPG = pgSelection.enter().append('g').attr('class', 'path-g');
+        pgSelection.exit().remove();
+        const childPGSelection = newPG.merge(pgSelection).selectAll('g.child-g')
+            .data((d, i) => {
+                return d.partitionObj.data.children;
+            });
+        const newChildG = childPGSelection.enter().append('g');
+
+        newChildG.merge(childPGSelection)
+            .attr('class', (d) => {
+                return 'child-g';
+            })
+            .attr('transform', (d) => {
+                return 'translate(' + d.cx + ',' + d.cy + ')';
+            });
+        childGSelection.exit().remove();
+        const childSelection = newChildG.merge(childGSelection).selectAll('circle').data((d) => {
+            return [d];
+        });
+        const newChild = childSelection.enter().append('circle');
+        newChild.merge(childSelection)
+            .attr('r', (c) => {
+                return self.arcThickness / 2;
+            })
+            .attr('fill', 'white')
+            .attr('cx', 0)
+            .attr('cy', 0);
+        pathSelection.exit().remove();
+        gsSelection.exit().remove();
+
+        /*---- ghost pie chart implementation---*/
+        const gsZoomSelection = this.svgZoomG.selectAll('g')
+            .data(this.dataset);
+        const newZoomGEle = gsZoomSelection.enter()
+            .append('g')
+            .attr('class', 'ghost-g')
+            .attr('pointer-events', 'none');
+
+        const pathZoomSelection = newZoomGEle.merge(gsZoomSelection).selectAll('path')
+            .data((d, i) => {
+                return self.pie(d.data).map((item) => {
                     return {partitionObj: item, parentIndex: i + 1};
                 });
             });
 
-        const newPath = pathSelection.enter().append('path');
+        const newZoomPath = pathZoomSelection.enter().append('path');
 
-        newPath.merge(pathSelection)
-            .attr('stroke', '#fff')
-            .attr('fill', (d) => {
-                return _this.color(d.parentIndex);
-            })
+        newZoomPath.merge(pathZoomSelection)
+            .attr('class', 'ghost-path')
+            .attr('pointer-events', 'none')
             .attr('d', (d) => {
-                return _this.arc
-                    .innerRadius(_this.arcThickness * (d.parentIndex - 1))
-                    .outerRadius(_this.arcThickness * (d.parentIndex))(d.partitionObj);
+                return self.arc
+                    .innerRadius(self.arcThickness * (d.parentIndex - 1))
+                    .outerRadius(self.arcThickness * (d.parentIndex))(d.partitionObj);
             })
-            .on('mouseover', (e) => {
-                console.log(e, d3.event);
+            .style('fill', 'transparent')
+            .on('mouseover', function (d) {
+                d3.selectAll('.node' + d.parentIndex)
+                    .attr('stroke', (g: any) => {
+                        return '#fff';
+                    })
+                    .attr('fill', (g: any) => {
+                        return self.circleColorScale(g.parentIndex);
+                    })
+                    .style('opacity', 0.8)
+                    .each((c: any) => {
+                        if (c.partitionObj.index === d.partitionObj.index) {
+                            self.dragTarget = c;
+                        }
+                    });
+            })
+            .on('mouseleave', function (d) {
+                d3.selectAll('.node' + d.parentIndex)
+                    .attr('stroke', (g: any) => {
+                        return '#fff';
+                    })
+                    .attr('fill', (g: any) => {
+                        return self.circleColorScale(g.parentIndex);
+                    })
+                    .style('opacity', 1).each((c) => {
+                    self.dragTarget = null;
+                });
             });
-        pathSelection.exit().remove();
-        gsSelection.exit().remove();
+        pathZoomSelection.exit().remove();
+        gsZoomSelection.exit().remove();
+        /*---- ghost pie chart implementation---*/
     }
 
     /**
      * Create chatbot UI
      * */
     fnCreateChatBot() {
-        const _this = this;
+        const self = this;
         this.chatbotG = this.svg.append('g');
 
         this.chatbot = this.chatbotG.append('foreignObject')
@@ -177,35 +349,33 @@ export class TenxGraphService {
             .attr('type', 'text')
             .attr('class', 'form-control').on('keypress', function () {
             if (d3.event.keyCode === 13) {
-                _this.msgDataArray.push({text: this.value});
-                _this.fnUpdateMsgArray();
+                self.msgDataArray.push({text: this.value});
+                self.fnUpdateMsgArray();
                 this.value = '';
             }
         });
     }
 
     public fnUpdateMsgArray() {
-        const _this = this;
+        const self = this;
         const msgSelection = this.msgContainer.selectAll('div.message').data(this.msgDataArray);
         const newMsg = msgSelection.enter()
             .append('xhtml:div');
         newMsg.merge(msgSelection)
             .attr('class', 'container message')
             .on('mouseover', (d) => {
-                const pos = d3.mouse(_this.svg.node());
-                const selection = _this.svg.selectAll('g.drag').data([d]);
-                selection.style('display', 'block');
+                const pos = d3.mouse(self.svg.node());
+                const selection = self.svg.selectAll('g.drag').data([d]);
+                // selection.style('display', 'block');
+                selection.attr('transform', 'translate(' + pos[0] + ',' + pos[1] + ')');
                 selection
                     .select('circle')
                     .style('fill', 'transparent')
-                    .attr('r', '40px')
-                    .attr('cx', pos[0])
-                    .attr('cy', pos[1]);
+                    .attr('r', self.arcThickness / 2)
+                ;
                 selection
                     .select('text')
                     .style('fill', 'transparent')
-                    .attr('x', pos[0] - 20)
-                    .attr('y', pos[1])
                     .text((td) => {
                         if (td.text.length > 5) {
                             return td.text.substring(0, 5) + '...';
